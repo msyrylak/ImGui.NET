@@ -2,6 +2,7 @@
 using System.Globalization;
 using ImGuiNET;
 using System.Numerics;
+using System.Collections.Generic;
 
 namespace ImGuiNET
 {
@@ -33,6 +34,7 @@ namespace ImGuiNET
             DataEditingAddr = -1;
             DataEditingTakeFocus = false;
             AllowEdits = true;
+
         }
 
         private static string FixedHex(int v, int count)
@@ -55,7 +57,7 @@ namespace ImGuiNET
             }
         }
 
-        public unsafe void Draw(string title, byte[] mem_data, int mem_size, int base_display_addr = 0)
+        public unsafe void Draw(string title, byte[] mem_data, int mem_size, Dictionary<ushort, ushort> changes, ushort pc, ushort highlightbyte, bool highlight, int base_display_addr = 0)
         {
             ImGui.SetNextWindowSize(new Vector2(500, 350), ImGuiCond.FirstUseEver);
             if (!ImGui.Begin(title))
@@ -63,6 +65,9 @@ namespace ImGuiNET
                 ImGui.End();
                 return;
             }
+
+            ImDrawListPtr ptr = ImGui.GetWindowDrawList();
+
 
             float line_height = ImGuiNative.igGetTextLineHeight();
             int line_total_count = (mem_size + Rows - 1) / Rows;
@@ -118,6 +123,25 @@ namespace ImGuiNET
                 for (int n = 0; n < Rows && addr < mem_size; n++, addr++)
                 {
                     ImGui.SameLine(line_start_x + cell_width * n);
+                    float highlight_width = 0;
+
+                    if (highlightbyte == 0)
+                    {
+                        highlight_width = 0;
+                    }
+                    else
+                    {
+                        highlight_width = (glyph_width * 3) * highlightbyte;
+                    }
+
+
+                    if (addr == pc && highlight)
+                    {
+                        Vector2 p = ImGui.GetCursorScreenPos();
+                        float x = (p.X + glyph_width * 2) + highlight_width, y = p.Y + line_height;
+                        Vector2 p2 = new Vector2(x, y);
+                        ptr.AddRectFilled(p, p2, 0xFF32CD32);
+                    }
 
                     if (DataEditingAddr == addr)
                     {
@@ -164,7 +188,37 @@ namespace ImGuiNET
                     }
                     else
                     {
-                        ImGui.Text(FixedHex(mem_data[addr], 2));
+                        // check if dictionary of changes is empty
+                        if (changes.Count != 0)
+                        {
+                            // check if item 
+                            if (changes.ContainsKey((ushort)addr))
+                            {
+                                foreach (var item in changes)
+                                {
+                                    if (addr == item.Key)
+                                    {
+                                        if (mem_data[addr] == item.Value)
+                                        {
+                                            ImGui.Text(FixedHex(mem_data[addr], 2));
+                                        }
+                                        else
+                                        {
+                                            Vector4 color = new Vector4(1.0f, 0.0f, 0.0f, 1.0f);
+                                            ImGui.TextColored(color, FixedHex(mem_data[addr], 2));
+                                        }
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                ImGui.Text(FixedHex(mem_data[addr], 2));
+                            }
+                        }
+                        else
+                        {
+                            ImGui.Text(FixedHex(mem_data[addr], 2));
+                        }
                         if (AllowEdits && ImGui.IsItemHovered() && ImGui.IsMouseClicked(0))
                         {
                             DataEditingTakeFocus = true;
